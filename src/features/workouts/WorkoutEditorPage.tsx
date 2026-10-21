@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, ChevronDown, MoreHorizontal, Plus, Search, Trash2, X } from 'lucide-react'
+import { CalendarDays, Check, ChevronDown, MoreHorizontal, Plus, Search, Trash2, X } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { db } from '../../db'
 import { getPreviousPerformance, getWorkoutBundle, searchExercises } from '../../db/operations'
 import type { Exercise, WorkoutSet } from '../../domain/types'
 import { calculateWorkoutVolume, countWorkingSets, formatSet } from '../../domain/calculations'
-import { formatDate } from '../../components/ui'
+import { formatDate, localDate, localDateOffset } from '../../components/ui'
 
 const rpeOptions = ['', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10']
 
@@ -16,7 +16,9 @@ export function WorkoutEditorPage() {
   const bundle = useLiveQuery(() => getWorkoutBundle(workoutId), [workoutId])
   const [pickerOpen, setPickerOpen] = useState(false)
   const [toast, setToast] = useState<string>()
+  const [dateDraft, setDateDraft] = useState('')
   useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(undefined), 1800); return () => clearTimeout(timer) }, [toast])
+  useEffect(() => { if (bundle?.workout.date) setDateDraft(bundle.workout.date) }, [bundle?.workout.date])
   if (!bundle) return <main><div className="workout-sticky"><span className="muted">正在读取训练…</span></div></main>
 
   const finish = async () => {
@@ -28,8 +30,15 @@ export function WorkoutEditorPage() {
   }
 
   const workingSets = bundle.exercises.reduce((sum, item) => sum + countWorkingSets(item.sets), 0)
+  const updateDate = async (date: string) => {
+    if (!date || date > localDate()) return
+    await db.workouts.update(workoutId, { date, updatedAt: new Date().toISOString() })
+    setToast('实际训练日期已更新')
+  }
+  const chooseDate = async (date: string) => { setDateDraft(date); await updateDate(date) }
   return <main>
     <div className="workout-sticky"><div className="row-between"><button className="button ghost small" onClick={() => navigate('/')}><X size={17} /> 暂离</button><div style={{ textAlign: 'center' }}><strong>{bundle.workout.title}</strong><div className="caption">{formatDate(bundle.workout.date)} · 自动保存</div></div><button className="button small" onClick={finish}><Check size={17} /> {bundle.workout.status === 'completed' ? '完成编辑' : '完成'}</button></div></div>
+    <section className="card" style={{ marginBottom: 12 }}><div className="row-between"><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><CalendarDays size={20} color="#d6ff62"/><div><strong>实际训练日期</strong><p className="caption" style={{ margin: '4px 0 0' }}>可修改为过去日期；真实录入时间不会改变。</p></div></div><span className="chip">{bundle.workout.date === localDate() ? '今天' : '补记'}</span></div><div className="field" style={{ marginTop: 12 }}><input aria-label="实际训练日期" type="date" max={localDate()} value={dateDraft} onChange={(event) => setDateDraft(event.target.value)} onBlur={(event) => updateDate(event.currentTarget.value)} /></div><div className="chip-row" style={{ marginTop: 10 }}><button className={`chip ${bundle.workout.date === localDate() ? 'accent' : ''}`} onClick={() => chooseDate(localDate())}>今天</button><button className={`chip ${bundle.workout.date === localDateOffset(-1) ? 'accent' : ''}`} onClick={() => chooseDate(localDateOffset(-1))}>昨天</button></div></section>
     <div className="stack">{bundle.exercises.map((item) => <ExerciseCard key={item.workoutExercise.id} item={item} workoutId={workoutId} onToast={setToast} />)}</div>
     <button className="button secondary full" style={{ marginTop: 14 }} onClick={() => setPickerOpen(true)}><Plus size={19} /> 添加动作</button>
     <section className="card workout-total" style={{ marginTop: 28 }}><div className="section-header"><h2>本次训练</h2><span className="chip accent">原始数据已保存</span></div><div className="grid-3"><div className="stat"><span>动作</span><strong>{bundle.exercises.length}</strong></div><div className="stat"><span>工作组</span><strong>{workingSets}</strong></div><div className="stat"><span>容量</span><strong>{Math.round(calculateWorkoutVolume(bundle)).toLocaleString()}</strong><small>kg·reps</small></div></div></section>
