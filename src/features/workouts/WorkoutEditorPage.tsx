@@ -7,6 +7,7 @@ import { getPreviousPerformance, getWorkoutBundle, searchExercises } from '../..
 import type { Exercise, WorkoutSet } from '../../domain/types'
 import { calculateWorkoutVolume, countWorkingSets, formatSet } from '../../domain/calculations'
 import { formatDate, localDate, localDateOffset } from '../../components/ui'
+import { saveLocalRecoverySnapshot } from '../backup/localRecovery'
 
 const rpeOptions = ['', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10']
 
@@ -26,6 +27,7 @@ export function WorkoutEditorPage() {
     const started = bundle.workout.startedAt ? new Date(bundle.workout.startedAt) : now
     const durationMin = Math.max(1, Math.round((now.getTime() - started.getTime()) / 60000))
     await db.workouts.update(workoutId, { status: 'completed', endedAt: now.toISOString(), durationMin: bundle.workout.durationMin ?? durationMin, updatedAt: now.toISOString() })
+    await saveLocalRecoverySnapshot()
     navigate(`/history/${workoutId}`, { replace: true })
   }
 
@@ -36,9 +38,14 @@ export function WorkoutEditorPage() {
     setToast('实际训练日期已更新')
   }
   const chooseDate = async (date: string) => { setDateDraft(date); await updateDate(date) }
+  const updateSession = async (patch: { durationMin?: number; activeCaloriesKcal?: number; notes?: string }) => {
+    await db.workouts.update(workoutId, { ...patch, updatedAt: new Date().toISOString() })
+    setToast('训练信息已保存')
+  }
   return <main>
     <div className="workout-sticky"><div className="row-between"><button className="button ghost small" onClick={() => navigate('/')}><X size={17} /> 暂离</button><div style={{ textAlign: 'center' }}><strong>{bundle.workout.title}</strong><div className="caption">{formatDate(bundle.workout.date)} · 自动保存</div></div><button className="button small" onClick={finish}><Check size={17} /> {bundle.workout.status === 'completed' ? '完成编辑' : '完成'}</button></div></div>
     <section className="card" style={{ marginBottom: 12 }}><div className="row-between"><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><CalendarDays size={20} color="#d6ff62"/><div><strong>实际训练日期</strong><p className="caption" style={{ margin: '4px 0 0' }}>可修改为过去日期；真实录入时间不会改变。</p></div></div><span className="chip">{bundle.workout.date === localDate() ? '今天' : '补记'}</span></div><div className="field" style={{ marginTop: 12 }}><input aria-label="实际训练日期" type="date" max={localDate()} value={dateDraft} onChange={(event) => setDateDraft(event.target.value)} onBlur={(event) => updateDate(event.currentTarget.value)} /></div><div className="chip-row" style={{ marginTop: 10 }}><button className={`chip ${bundle.workout.date === localDate() ? 'accent' : ''}`} onClick={() => chooseDate(localDate())}>今天</button><button className={`chip ${bundle.workout.date === localDateOffset(-1) ? 'accent' : ''}`} onClick={() => chooseDate(localDateOffset(-1))}>昨天</button></div></section>
+    <section className="card" style={{ marginBottom: 12 }}><div className="section-header"><div><h2>训练信息</h2><p className="caption" style={{ margin: 0 }}>可手动填写，也可参考 Apple Watch 后补。</p></div><span className="chip">可选</span></div><div className="form-grid two"><label className="field"><span>运动时长（分钟）</span><input aria-label="运动时长（分钟）" type="number" inputMode="numeric" min="0" step="1" defaultValue={bundle.workout.durationMin ?? ''} placeholder="例如 59" onBlur={(event) => updateSession({ durationMin: event.currentTarget.value ? Number(event.currentTarget.value) : undefined })} /></label><label className="field"><span>活动能量（kcal）</span><input aria-label="活动能量（kcal）" type="number" inputMode="numeric" min="0" step="1" defaultValue={bundle.workout.activeCaloriesKcal ?? ''} placeholder="Apple Watch 可选" onBlur={(event) => updateSession({ activeCaloriesKcal: event.currentTarget.value ? Number(event.currentTarget.value) : undefined })} /></label></div><label className="field" style={{ marginTop: 12 }}><span>本次训练备注</span><textarea aria-label="本次训练备注" defaultValue={bundle.workout.notes ?? ''} placeholder="整体感受、恢复、器械差异等…" onBlur={(event) => updateSession({ notes: event.currentTarget.value.trim() || undefined })} /></label><p className="caption" style={{ margin: '10px 0 0' }}>活动能量仅作辅助背景，不用于评价训练是否“成功”，也不会取代组数、RPE 和恢复反馈。</p></section>
     <div className="stack">{bundle.exercises.map((item) => <ExerciseCard key={item.workoutExercise.id} item={item} workoutId={workoutId} onToast={setToast} />)}</div>
     <button className="button secondary full" style={{ marginTop: 14 }} onClick={() => setPickerOpen(true)}><Plus size={19} /> 添加动作</button>
     <section className="card workout-total" style={{ marginTop: 28 }}><div className="section-header"><h2>本次训练</h2><span className="chip accent">原始数据已保存</span></div><div className="grid-3"><div className="stat"><span>动作</span><strong>{bundle.exercises.length}</strong></div><div className="stat"><span>工作组</span><strong>{workingSets}</strong></div><div className="stat"><span>容量</span><strong>{Math.round(calculateWorkoutVolume(bundle)).toLocaleString()}</strong><small>kg·reps</small></div></div></section>

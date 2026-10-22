@@ -32,7 +32,7 @@ export const exerciseSchema = z.object({
 export const workoutSchema = z.object({
   id: z.string().min(1), date: isoDate, startedAt: isoDateTime.optional(), endedAt: isoDateTime.optional(),
   title: z.string().min(1), workoutType: z.string(), status: z.enum(['in_progress', 'completed']), notes: optionalText,
-  durationMin: z.number().nonnegative().optional(), source: z.enum(['manual', 'import', 'demo']),
+  durationMin: z.number().nonnegative().optional(), activeCaloriesKcal: z.number().nonnegative().optional(), source: z.enum(['manual', 'import', 'demo']),
   externalMetadata: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(), createdAt: isoDateTime, updatedAt: isoDateTime,
 })
 

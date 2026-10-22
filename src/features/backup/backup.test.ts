@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { FormlogDatabase } from '../../db'
 import { createBackup, importBackup, migrateBackup } from './backup'
 import { demoSeed } from '../../data/demoSeed'
+import { recoverLocalDataIfNeeded, saveLocalRecoverySnapshot } from './localRecovery'
 
 let database: FormlogDatabase | undefined
 afterEach(async () => { if (database) { database.close(); await database.delete(); database = undefined } })
@@ -31,5 +32,23 @@ describe('backup and restore', () => {
   })
   it('rejects structurally invalid backups before mutation', () => {
     expect(() => migrateBackup({ schemaVersion: 1, workouts: 'bad' })).toThrow()
+  })
+  it('restores an unexpectedly empty database from the device-local update snapshot', async () => {
+    database = new FormlogDatabase(`recovery-test-${crypto.randomUUID()}`)
+    await importBackup(demoSeed, 'replace', database)
+    const responses = new Map<string, Response>()
+    const cache = {
+      put: async (request: RequestInfo | URL, response: Response) => { responses.set(String(request), response.clone()) },
+      match: async (request: RequestInfo | URL) => responses.get(String(request))?.clone(),
+    } as unknown as Cache
+    const storage = { open: async () => cache, delete: async () => { responses.clear(); return true } } as unknown as CacheStorage
+
+    expect(await saveLocalRecoverySnapshot(database, storage)).toBe(true)
+    await Promise.all(database.tables.map((table) => table.clear()))
+    expect(await database.workouts.count()).toBe(0)
+
+    expect(await recoverLocalDataIfNeeded(database, storage)).toBe(true)
+    expect(await database.workouts.count()).toBe(demoSeed.workouts.length)
+    expect((await database.workouts.get('demo-workout-1'))?.activeCaloriesKcal).toBe(318)
   })
 })

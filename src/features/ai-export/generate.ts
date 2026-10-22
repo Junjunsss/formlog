@@ -65,7 +65,8 @@ ${prs}
 function recentSessionsMarkdown(bundles: WorkoutBundle[], limit = 10): string {
   const content = bundles.filter((bundle) => bundle.workout.status === 'completed').slice(0, limit).map((bundle) => {
     const exercises = bundle.exercises.map((item) => `### ${item.exercise.displayNameEn} / ${item.exercise.displayNameZh}\n\n${item.sets.map((set) => `- ${formatSet(set, item.exercise)}${set.notes ? ` — ${set.notes}` : ''}`).join('\n') || '- No sets'}`).join('\n\n')
-    return `## ${bundle.workout.date} — ${bundle.workout.title}\n\n${bundle.workout.durationMin ? `Duration: ${bundle.workout.durationMin} min\n\n` : ''}${exercises}`
+    const metadata = [bundle.workout.durationMin != null ? `Duration: ${bundle.workout.durationMin} min` : '', bundle.workout.activeCaloriesKcal != null ? `Active calories: ${bundle.workout.activeCaloriesKcal} kcal` : ''].filter(Boolean).join(' · ')
+    return `## ${bundle.workout.date} — ${bundle.workout.title}\n\n${metadata ? `${metadata}\n\n` : ''}${exercises}`
   }).join('\n\n---\n\n')
   return `# Recent Training Sessions\n\n${content || 'No completed sessions yet.'}\n`
 }
@@ -226,7 +227,7 @@ export function generateAIHandoff(data: BackupData): AIExportFiles {
     'AI_CONTEXT.md': aiContext(data, bundles),
     'recent_sessions.md': recentSessionsMarkdown(bundles),
     'sets.csv': setsCsv(data),
-    'workouts.csv': ['id,date,title,workout_type,status,duration_min,notes', ...data.workouts.map((item) => [item.id, item.date, item.title, item.workoutType, item.status, item.durationMin, item.notes].map(csv).join(','))].join('\n'),
+    'workouts.csv': ['id,date,title,workout_type,status,duration_min,active_calories_kcal,notes', ...data.workouts.map((item) => [item.id, item.date, item.title, item.workoutType, item.status, item.durationMin, item.activeCaloriesKcal, item.notes].map(csv).join(','))].join('\n'),
     'exercises.csv': ['id,canonical_name,display_name_zh,display_name_en,aliases,category,primary_muscles,equipment,load_type,laterality,notes', ...data.exercises.map((item: Exercise) => [item.id, item.canonicalName, item.displayNameZh, item.displayNameEn, item.aliases.join('|'), item.category, item.primaryMuscles.join('|'), item.equipment, item.loadType, item.laterality, item.notes].map(csv).join(','))].join('\n'),
     'ai_handoff_prompt.md': `# Handoff Prompt
 

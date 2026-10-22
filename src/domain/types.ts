@@ -60,6 +60,7 @@ export interface Workout {
   status: WorkoutStatus
   notes?: string
   durationMin?: number
+  activeCaloriesKcal?: number
   source: 'manual' | 'import' | 'demo'
   externalMetadata?: Record<string, string | number | boolean>
   createdAt: string

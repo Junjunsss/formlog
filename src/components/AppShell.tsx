@@ -1,5 +1,6 @@
 import { Activity, ChartNoAxesCombined, Dumbbell, Ellipsis, House } from 'lucide-react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { PWAUpdatePrompt } from './PWAUpdatePrompt'
 
 const items = [
   { to: '/', label: '今天', icon: House },
@@ -23,6 +24,7 @@ export function AppShell() {
         <Outlet />
       </div>
       {!hideMobileNav && <nav className="bottom-nav" aria-label="主导航">{items.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'}><Icon size={21} /><span>{label}</span></NavLink>)}</nav>}
+      <PWAUpdatePrompt />
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { ensureDatabaseSeeded } from '../db'
+import { recoverLocalDataIfNeeded, saveLocalRecoverySnapshot } from '../features/backup/localRecovery'
 import { AppShell } from '../components/AppShell'
 import { TodayPage } from '../features/dashboard/TodayPage'
 import { TrainPage } from '../features/workouts/TrainPage'
@@ -20,9 +21,13 @@ const TrainingPlanPage = lazy(() => import('../features/training-plan/TrainingPl
 export function App() {
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string>()
+  const [recovered, setRecovered] = useState(false)
   useEffect(() => {
-    ensureDatabaseSeeded().then(() => setReady(true)).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : '数据库初始化失败'))
+    recoverLocalDataIfNeeded()
+      .then(async (didRecover) => { setRecovered(didRecover); await ensureDatabaseSeeded(); await saveLocalRecoverySnapshot(); setReady(true) })
+      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : '数据库初始化失败'))
   }, [])
+  useEffect(() => { if (!recovered) return; const timer = window.setTimeout(() => setRecovered(false), 5000); return () => clearTimeout(timer) }, [recovered])
 
   if (error) return <main className="boot"><div><h1>无法打开本地数据库</h1><p>{error}</p></div></main>
   if (!ready) return <main className="boot"><div className="brand-mark" aria-label="Formlog">F</div><p>正在打开本地训练记录…</p></main>
@@ -46,5 +51,6 @@ export function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+    {recovered && <div className="toast">已从设备内恢复快照找回训练数据</div>}
   </Suspense>
 }
