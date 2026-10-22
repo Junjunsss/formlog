@@ -34,6 +34,8 @@ npm run preview
 
 动作搜索同时匹配中文、英文 canonical name 和 alias。哑铃的 `per_hand`、器械的 `machine_stack`、自重与辅助自重均保留明确语义；单侧动作可注明每侧次数，避免明显错误的容量统计。
 
+如果训练中搜索不到动作，可直接在动作选择器中选择“新建自定义动作”。自定义名称是必填项；英文名、器械、主要肌群、搜索别名和备注可稍后补充。保存后动作会立即加入当前训练及永久动作库，并随完整 JSON 备份迁移。
+
 ## PWA 与离线
 
 Vite PWA 插件在生产构建中生成 manifest 与 service worker。首次在线加载生产版本后，app shell 会被缓存；安装到 iPhone 主屏幕或桌面浏览器后，可以离线打开、查看历史和记录训练。iPhone 底部导航包含 `safe-area-inset-bottom`。

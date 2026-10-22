@@ -8,6 +8,7 @@ import type { Exercise, WorkoutSet } from '../../domain/types'
 import { calculateWorkoutVolume, countWorkingSets, formatSet } from '../../domain/calculations'
 import { formatDate, localDate, localDateOffset } from '../../components/ui'
 import { saveLocalRecoverySnapshot } from '../backup/localRecovery'
+import { CustomExerciseForm } from '../exercises/CustomExerciseForm'
 
 const rpeOptions = ['', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10']
 
@@ -99,9 +100,18 @@ function ExercisePicker({ workoutId, order, onClose }: { workoutId: string; orde
   const exerciseResult = useLiveQuery(() => db.exercises.filter((exercise) => !exercise.isArchived).toArray())
   const exercises = useMemo(() => exerciseResult ?? [], [exerciseResult])
   const [query, setQuery] = useState('')
+  const [creating, setCreating] = useState(false)
   const results = useMemo(() => searchExercises(exercises, query).slice(0, 50), [exercises, query])
-  const add = async (exerciseId: string) => { await db.workoutExercises.add({ id: crypto.randomUUID(), workoutId, exerciseId, order }); await db.workouts.update(workoutId, { updatedAt: new Date().toISOString() }); onClose() }
-  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><div className="modal"><div className="modal-handle" /><div className="section-header"><h2>添加动作</h2><button className="icon-button" onClick={onClose}><X /></button></div><div className="search-wrap"><Search size={19} /><input className="input" autoFocus placeholder="搜索中文、英文或 alias" value={query} onChange={(event) => setQuery(event.target.value)} /></div><div style={{ marginTop: 14 }}>{results.map((exercise) => <button className="list-row" style={{ width: '100%', background: 'transparent', borderLeft: 0, borderRight: 0, borderTop: 0, color: 'inherit', textAlign: 'left' }} key={exercise.id} onClick={() => add(exercise.id)}><div className="list-row-main"><strong>{exercise.displayNameZh}</strong><p>{exercise.displayNameEn} · {loadLabel(exercise)}</p></div><ChevronDown size={18} style={{ transform: 'rotate(-90deg)' }} /></button>)}</div></div></div>
+  const add = async (exerciseId: string, exercise?: Exercise) => {
+    const now = new Date().toISOString()
+    await db.transaction('rw', [db.exercises, db.workoutExercises, db.workouts], async () => {
+      if (exercise) await db.exercises.add(exercise)
+      await db.workoutExercises.add({ id: crypto.randomUUID(), workoutId, exerciseId, order })
+      await db.workouts.update(workoutId, { updatedAt: now })
+    })
+    onClose()
+  }
+  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><div className="modal"><div className="modal-handle" /><div className="section-header"><div><h2>{creating ? '新建自定义动作' : '添加动作'}</h2>{creating && <p className="caption" style={{ margin: 0 }}>保存后会加入本次训练和永久动作库。</p>}</div><button className="icon-button" onClick={onClose}><X /></button></div>{creating ? <CustomExerciseForm initialName={query} submitLabel="保存并加入训练" onCancel={() => setCreating(false)} onSave={async (exercise) => add(exercise.id, exercise)} /> : <><div className="search-wrap"><Search size={19} /><input className="input" autoFocus placeholder="搜索中文、英文或 alias" value={query} onChange={(event) => setQuery(event.target.value)} /></div><button className="button secondary full" style={{ marginTop: 12 }} onClick={() => setCreating(true)}><Plus size={17}/> {query.trim() ? `新建“${query.trim()}”` : '新建自定义动作'}</button><div style={{ marginTop: 14 }}>{results.length ? results.map((exercise) => <button className="list-row" style={{ width: '100%', background: 'transparent', borderLeft: 0, borderRight: 0, borderTop: 0, color: 'inherit', textAlign: 'left' }} key={exercise.id} onClick={() => add(exercise.id)}><div className="list-row-main"><strong>{exercise.displayNameZh}</strong><p>{exercise.displayNameEn} · {loadLabel(exercise)}</p></div><ChevronDown size={18} style={{ transform: 'rotate(-90deg)' }} /></button>) : <div className="empty-state" style={{ padding: 22 }}><h3>动作库里没有找到</h3><p>可以用上面的名称直接创建，之后每次都能搜索到。</p></div>}</div></>}</div></div>
 }
 
 function loadLabel(exercise: Exercise) {
